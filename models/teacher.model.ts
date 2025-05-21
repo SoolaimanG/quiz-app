@@ -118,16 +118,6 @@ teacherSchema.pre("save", async function (next) {
           return next(err);
         }
       }
-
-      // Update the user's approval status
-      const teacherService = new TeacherService(this.user as string);
-      const user = await teacherService.getUser({
-        query: { _id: this.user },
-        throwOn404: true,
-      });
-
-      user.isSubjectsApproved = false;
-      await user.save({ validateModifiedOnly: true });
     }
 
     return next();
@@ -157,20 +147,6 @@ teacherSchema.pre("findOneAndUpdate", async function (this) {
         throw err;
       }
     }
-
-    // Update the user's approval status
-    const teacherService = new TeacherService();
-    const teacher = await teacherService.getTeacherProfile({
-      query: { _id: query._id },
-      throwOn404: true,
-    });
-
-    const user = await teacherService.getUser({
-      query: { _id: teacher?.user },
-    });
-
-    user.isSubjectsApproved = false;
-    await user.save({ validateModifiedOnly: true });
   }
 });
 

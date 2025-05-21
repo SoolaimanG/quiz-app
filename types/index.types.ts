@@ -6,7 +6,12 @@ export interface ITimeStamp {
 export type IRole = "TEACHER" | "STUDENT" | "ADMIN";
 export type IGender = "MALE" | "FEMALE";
 export type ITestStatus = "completed" | "in-progress" | "not-started";
-export type IQuestionType = "mcq" | "short-answer" | "long-answer" | "obj";
+export type IQuestionType =
+  | "mcq"
+  | "short-answer"
+  | "long-answer"
+  | "obj"
+  | "boolean";
 export type IMediaType = "image";
 export type ILogSeverity = "info" | "warning" | "error" | "critical";
 
@@ -27,6 +32,7 @@ export interface IUser extends ITimeStamp {
   gender: IGender;
   profilePicture?: string;
   isSubjectsApproved?: boolean;
+  pendingSubjects?: (string | ISubject)[];
 
   //Auth Methods
   validatePassword?: (password: string) => Promise<void>;
@@ -111,9 +117,11 @@ export interface ITest extends ITimeStamp {
   instructions: string;
   description: string;
   teacher: ITeacher | string;
-  settings: ITestSettings;
+  settings?: ITestSettings;
   allowedStudents: (IStudent | string)[];
   accessCode?: ITestAccessCode;
+  subject: ISubject | string;
+  isActive?: boolean;
 }
 
 export interface ITestAccessCode extends ITimeStamp {
@@ -122,12 +130,12 @@ export interface ITestAccessCode extends ITimeStamp {
   allowReuse?: boolean;
   maxUsageCount?: number;
   validUntil?: Date;
-  test: ITest | string;
+  students: (IStudent | string)[];
 }
 
 export interface ITestSettings {
   _id?: string;
-  timeLimit: number;
+  timeLimit?: number;
   endNote?: string;
   submitOnPageLeave?: boolean;
   shuffleQuestions?: boolean;
@@ -180,6 +188,7 @@ export interface IQuestion extends ITimeStamp {
   score: number;
   explanation?: string;
   media?: IMedia | string;
+  booleanAnswer?: boolean;
 }
 
 export interface IOption extends ITimeStamp {

@@ -86,6 +86,7 @@ export class UserService {
           password: "",
           salt: "",
         },
+        pendingSubjects: [],
       };
 
       const newUser = new User(user);
@@ -185,7 +186,7 @@ export class UserService {
     subjects: string[]
   ) {
     try {
-      await this.session?.startSession();
+      this.session?.session?.startTransaction();
 
       const user = await this.createAccount(
         {
@@ -213,7 +214,7 @@ export class UserService {
       });
 
       await this.log.info("Student account assigned to user");
-      await this?.session?.commitTransaction();
+      await this?.session?.session?.commitTransaction();
 
       return { ...student.toJSON(), ...user?.toJSON() };
     } catch (error) {
@@ -222,7 +223,7 @@ export class UserService {
       );
 
       if (this.session.session) {
-        await this.session.abortTransaction();
+        await this.session?.session?.abortTransaction();
       }
 
       throw error;
@@ -235,13 +236,11 @@ export class UserService {
     query?: any;
     select?: string;
   }): Promise<T> {
-    const user = await User.findOne({
-      $or: [
-        { identifier: this.identifier },
-        { id: this.identifier },
-        options?.query || {},
-      ],
-    }).select(options?.select!);
+    const user = await User.findOne(
+      options?.query || {
+        $or: [{ identifier: this.identifier }, { id: this.identifier }],
+      }
+    ).select(options?.select!);
 
     if (options?.throwOn404 && !user) {
       throw new Error("USER_NOT_FOUND");
@@ -317,13 +316,14 @@ export class UserService {
 
       this.session.session?.startTransaction();
 
-      const user = await User.findOne({ identifier: this.identifier })
-        .select("+authentication")
-        .session(this.session?.session);
+      const user = await this.getUser({
+        select: "+authentication",
+        query: { identifier: this.identifier, role },
+      });
 
       if (!user) {
-        this.session?.abortTransaction();
-        throw new Error("LOGIN_ERROR: User not found");
+        this.session?.session?.abortTransaction();
+        throw new Error("LOGIN_ERROR: User with this query not found");
       }
 
       now.setHours(now.getHours() + 1);
@@ -334,7 +334,7 @@ export class UserService {
       await user?.validateUser?.(role);
 
       const SALT = user?.generateSalt?.() as string;
-      const token = authentication(user._id, SALT);
+      const token = authentication(user?._id!, SALT);
 
       //Update the user session to a new session
       user?.setSession?.(token, SALT, now);
@@ -625,14 +625,11 @@ export class TeacherService extends UserService {
     try {
       this.session.session?.startTransaction();
 
-      const teacher = await this.getTeacherProfile({
-        throwOn404: true,
-        select: "+subjects",
-      });
+      const user = await this.getUser();
 
-      await teacher?.addSubjects?.(subjectIds);
+      user.pendingSubjects = [...subjectIds];
 
-      const updatedTeacherProfile = await teacher?.save({
+      const updatedUser = await user?.save({
         validateModifiedOnly: true,
         session: this.session?.session,
       });
@@ -644,7 +641,7 @@ export class TeacherService extends UserService {
 
       await this.session.session?.commitTransaction();
 
-      return updatedTeacherProfile;
+      return updatedUser;
     } catch (error) {
       if (this.session.session) {
         await this.session.session.abortTransaction();

@@ -1,7 +1,7 @@
 import { ILogs, ILogSeverity } from "@/types/index.types";
 import { Model, model, models, Schema } from "mongoose";
 
-const LogSchema = new Schema<ILogs>(
+export const LogSchema = new Schema<ILogs>(
   {
     action: {
       type: String,

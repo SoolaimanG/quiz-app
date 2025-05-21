@@ -1,5 +1,5 @@
 import { IStudent } from "@/types/index.types";
-import { model, models, Schema } from "mongoose";
+import { Model, model, models, Schema } from "mongoose";
 import { Subject } from "./subjects.model";
 import { User } from "./users.model";
 
@@ -11,7 +11,7 @@ const studentSchema = new Schema<IStudent>({
     type: Date,
   },
   subjects: {
-    type: [{ ref: "Subject", type: Schema.Types.ObjectId, select: false }],
+    type: [{ ref: "Subject", type: Schema.Types.ObjectId }],
     default: [],
     validate: {
       validator: async function (subjects: string[]) {
@@ -33,7 +33,6 @@ const studentSchema = new Schema<IStudent>({
     type: Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    select: false,
     validate: {
       validator: async function (userId: string) {
         return Boolean(await User.findById(userId));
@@ -66,5 +65,5 @@ studentSchema.post("save", async function (doc) {
   }
 });
 
-export const Student =
+export const Student: Model<IStudent> =
   models?.Student ?? model<IStudent>("Student", studentSchema);

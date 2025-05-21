@@ -4,10 +4,12 @@ import { IRole } from "@/types/index.types";
 import loginSchema from "@/validations/login.schema";
 import { NextResponse } from "next/server";
 import { _CONSTANTS, COOKIES_OPTION, HTTPSTATUS } from "@/lib/constants";
+import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const cookiesStore = await cookies();
 
     const result = loginSchema.safeParse(body);
 
@@ -31,24 +33,21 @@ export async function POST(request: Request) {
 
     const res = await user.login(password, role as IRole);
 
-    // Create a single response object
-    const response = NextResponse.json(
+    // Set the cookie on the same response object
+    cookiesStore.set(_CONSTANTS.AUTH_HEADER, res?.token!, COOKIES_OPTION);
+
+    cookiesStore.set("user_session", "true", COOKIES_OPTION); //To tell the client the user isLogged In
+
+    // Return the response with cookies
+    return NextResponse.json(
       {
         status: true,
         message: "You are successfully logged in.",
         data: { token: res?.token },
         statusCode: 200,
       },
-      { status: 200, statusText: "OK" }
+      { ...HTTPSTATUS["200"] }
     );
-
-    // Set the cookie on the same response object
-    response.cookies.set(_CONSTANTS.AUTH_HEADER, res?.token!, COOKIES_OPTION);
-
-    response.cookies.set("user_session", "true", COOKIES_OPTION); //To tell the client the user isLogged In
-
-    // Return the response with cookies
-    return response;
   } catch (error) {
     console.log(error);
     //logger.error((error as Error).message);

@@ -6,6 +6,8 @@ import { Student } from "./student.model";
 import { IRole as Role } from "@/types/index.types";
 import { cookies } from "next/headers";
 import { _CONSTANTS, COOKIES_OPTION } from "@/lib/constants";
+import { TeacherService } from "@/server/services";
+import { Subject } from "./subjects.model";
 
 export enum IRole {
   ADMIN = "ADMIN",
@@ -60,6 +62,22 @@ const userSchema = new Schema<IUser>(
       select: false,
     },
     isSubjectsApproved: { type: Boolean, default: false },
+    pendingSubjects: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Subject" }],
+      validate: {
+        validator: async function (v: string[]) {
+          if (!v || v.length === 0) return true;
+
+          const subjectCount = await Subject.countDocuments({
+            _id: { $in: v },
+          });
+
+          return subjectCount === v.length;
+        },
+        message: "One or more subjects do not exist",
+      },
+      default: undefined,
+    },
   },
   {
     timestamps: true,
@@ -174,7 +192,6 @@ userSchema.methods.validateUser = async function (role: Role) {
   }
 
   if (this.role !== role) {
-    await this.session.abortTransaction();
     throw new Error(`LOGIN_ERROR: You are not allow to login as a ${role}`);
   }
 
@@ -191,8 +208,6 @@ userSchema.methods.validateUser = async function (role: Role) {
       );
     }
   }
-
-  return this.save();
 };
 
 export const findUserBySessionToken = (sessionToken: string) => {
@@ -204,9 +219,46 @@ export const findUserByEmail = (email: string) => {
 };
 
 //Middleware
+
+userSchema.pre("save", async function (next) {
+  try {
+    if (this.isModified("pendingSubjects")) {
+      this.isSubjectsApproved = false;
+    }
+
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
 userSchema.post("save", async function (doc) {
   if (this.isNew) {
     //Send an email to the admin that a new user has been created
+  }
+
+  if (doc.isModified("isSubjectsApproved") && doc.isSubjectsApproved) {
+    //Check if the user is a teacher or a student
+
+    if (doc.role === IRole.TEACHER) {
+      const teacherService = new TeacherService(doc.identifier);
+
+      const teacher = await teacherService.getTeacherProfile({
+        query: { user: doc._id },
+        throwOn404: true,
+        toJson: true,
+      });
+
+      teacher?.addSubjects?.(doc.pendingSubjects as string[]);
+
+      await teacher?.save({
+        validateModifiedOnly: true,
+      });
+    }
+
+    //TODO: add student logic here
+    if (doc.role === IRole.STUDENT) {
+    }
   }
 });
 

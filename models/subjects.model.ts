@@ -23,8 +23,10 @@ const SubjectSchema = new Schema<ISubject>(
         validator: async function (teachers: string[]) {
           if (teachers.length === 0) return true;
 
-          const teacherIds = await Teacher.find({ _id: { $in: teachers } });
-          return teacherIds.length === teachers.length;
+          const teacherIds = await Teacher.countDocuments({
+            _id: { $in: teachers },
+          });
+          return teacherIds === teachers.length;
         },
         message: "Invalid teacher IDs provided.",
       },
