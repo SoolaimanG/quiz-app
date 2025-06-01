@@ -1,6 +1,12 @@
-import { ITestAttempt } from "@/types/index.types";
+import { IQuestionsAttempted, ITestAttempt } from "@/types/index.types";
 import { Model, model, models, Schema } from "mongoose";
 import { LogSchema } from "./log.model";
+
+const QuestionsAttempted = new Schema<IQuestionsAttempted>({
+  answer: { type: String, required: true },
+  isCorrect: { type: Boolean, default: false },
+  question: { type: Schema.Types.ObjectId, ref: "Question" },
+});
 
 const TestAttemptSchema = new Schema<ITestAttempt>(
   {
@@ -8,7 +14,7 @@ const TestAttemptSchema = new Schema<ITestAttempt>(
       type: Date,
     },
     questionsAttempted: {
-      type: [{ type: Schema.Types.ObjectId, ref: "Question" }],
+      type: [QuestionsAttempted],
       default: [],
     },
     score: {
@@ -28,6 +34,7 @@ const TestAttemptSchema = new Schema<ITestAttempt>(
     studentLogs: { type: [LogSchema], default: [] },
     teacherFeedback: { type: String },
     test: { type: Schema.Types.ObjectId, ref: "Test" },
+    resultIsReady: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

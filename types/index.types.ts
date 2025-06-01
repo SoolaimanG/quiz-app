@@ -1,3 +1,7 @@
+import { HTMLMotionProps } from "framer-motion";
+import { Schema } from "mongoose";
+import { ZodIssue } from "zod";
+
 export interface ITimeStamp {
   createdAt?: string;
   updatedAt?: string;
@@ -77,6 +81,7 @@ export interface ITeacher {
 }
 
 export interface IStudent {
+  _id?: string;
   dob?: string | Date;
   contact?: string;
   tests?: (ITestAttempt | string)[];
@@ -122,6 +127,7 @@ export interface ITest extends ITimeStamp {
   accessCode?: ITestAccessCode;
   subject: ISubject | string;
   isActive?: boolean;
+  secretKey?: string;
 }
 
 export interface ITestAccessCode extends ITimeStamp {
@@ -151,6 +157,7 @@ export interface ITestSettings {
   preventScreenCapture?: boolean;
   preventCopyPaste?: boolean;
   preventPrint?: boolean;
+  allowInternalSystemToGradeTest?: boolean;
 }
 
 export interface IQuestionsAttempted {
@@ -161,7 +168,7 @@ export interface IQuestionsAttempted {
 }
 
 export interface ITestAttempt extends ITimeStamp {
-  _id?: string;
+  _id?: string | Schema.Types.ObjectId;
   test: ITest | string;
   student: IStudent | string;
   score: number;
@@ -171,12 +178,14 @@ export interface ITestAttempt extends ITimeStamp {
   teacherFeedback?: string;
   questionsAttempted: IQuestionsAttempted[];
   studentLogs: ILogs[];
+  resultIsReady?: boolean;
 }
 
 export interface IMedia extends ITimeStamp {
   _id?: string;
   url: string;
   type: IMediaType;
+  publicId?: string;
 }
 
 export interface IQuestion extends ITimeStamp {
@@ -205,12 +214,114 @@ export interface IAnswer extends ITimeStamp {
   question: IQuestion | string;
 }
 
+export interface ITestSummary {
+  _id: string;
+  title: string;
+  subject: string;
+  totalAllowedStudents: number;
+  totalSubmitted: number;
+  submissionRate: string;
+}
+
+export interface IOngoingTest {
+  totalOngoingTests: number;
+  totalSubmissionsAcrossAllTests: number;
+  totalAllowedStudentsAcrossAllTests: number;
+  overallSubmissionRate: string;
+  tests: ITestSummary[];
+}
+
 //Api Response
 export interface IApiResponse<T = any> {
   data: T;
   status: boolean;
   message: string;
   statusCode: number;
-  errors?: any[];
+  errors?: ZodIssue[];
   [key: string]: any;
+}
+
+export interface ITestAttemptInfo {
+  id: string;
+  startTime: string;
+  endTime: string;
+  status: ITestStatus;
+  totalTimeTaken: number;
+  resultIsReady: boolean;
+}
+
+export interface IOverallPerformance {
+  score: number;
+  totalPossibleScore: number;
+  scorePercentage: number;
+  grade: string;
+  performance: string;
+  accuracy: number;
+  completionRate: number;
+  totalQuestionsAttempted: number;
+  correctAnswers: number;
+  incorrectAnswers: number;
+  unattemptedQuestions: number;
+}
+
+export interface IQuestionAnalysis {
+  questionId: string;
+  question: string;
+  type: IQuestionType;
+  maxScore: number;
+  selectedAnswer: string | null;
+  correctAnswer: string | null;
+  scoreEarned: number;
+  isAttempted: boolean;
+  options: any[] | null;
+}
+
+export interface ITypePerformanceMetrics {
+  totalQuestions: number;
+  correctAnswers: number;
+  totalScore: number;
+  earnedScore: number;
+  accuracy: number;
+}
+
+export interface ITypePerformance {
+  [key: string]: ITypePerformanceMetrics;
+}
+
+export interface IInsights {
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
+}
+
+export interface ITestAnalysisData {
+  attemptInfo: ITestAttemptInfo;
+  overallPerformance: IOverallPerformance;
+  questionAnalysis: IQuestionAnalysis[];
+  typePerformance: ITypePerformance;
+  insights: IInsights;
+  teacherFeedback: string | null;
+  studentLogs: ILogs[];
+  generatedAt: string;
+}
+
+export interface UploadDocsOptions {
+  skipDocOnError?: boolean;
+  throwOnError?: boolean;
+  isProfileImage?: boolean;
+}
+
+//EXTERNALS
+export interface DecryptedTextProps extends HTMLMotionProps<"span"> {
+  text: string;
+  speed?: number;
+  maxIterations?: number;
+  sequential?: boolean;
+  revealDirection?: "start" | "end" | "center";
+  useOriginalCharsOnly?: boolean;
+  characters?: string;
+  className?: string;
+  encryptedClassName?: string;
+  parentClassName?: string;
+  animateOn?: "view" | "hover";
 }

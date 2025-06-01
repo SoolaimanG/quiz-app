@@ -32,4 +32,15 @@ const teacherUpdatesSchema = z.object({
     .optional(),
 });
 
-export { teacherUpdatesSchema };
+const teacherUpdatesSchemaForTeacher = z
+  .array(
+    z.string().refine(
+      (value) => {
+        return isValidObjectId(value);
+      },
+      { message: "Please use a valid Id" }
+    )
+  )
+  .min(1);
+
+export { teacherUpdatesSchema, teacherUpdatesSchemaForTeacher };

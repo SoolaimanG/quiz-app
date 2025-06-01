@@ -19,7 +19,14 @@ const userSchema = z.object({
         message: "Please provide both first name and last name",
       }
     ),
-  profilePicture: z.string().url().optional(),
+  profilePicture: z.string().refine(
+    (url) => {
+      if (!url.startsWith("data:")) {
+        return false;
+      }
+    },
+    { message: "Please use a valid profile picture encoded in base64" }
+  ),
 });
 
 export default userSchema;

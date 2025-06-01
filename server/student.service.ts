@@ -17,13 +17,16 @@ export class Student extends UserService {
     toJson?: boolean;
     throwOn404?: boolean;
     select?: string;
+    populate?: any;
   }): Promise<(Document<unknown, {}, IStudent> & IStudent) | null> {
     try {
       const user = await this.getUser({ throwOn404: !Boolean(options?.query) });
 
       const student = await StudentModel.findOne(
         options?.query || { user: user._id }
-      ).select(options?.select!);
+      )
+        .select(options?.select!)
+        .populate(options?.populate!);
 
       if (!student && options?.throwOn404) {
         throw new Error("STUDENT_QUERY_ERROR: student not found.");

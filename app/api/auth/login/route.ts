@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     cookiesStore.set(_CONSTANTS.AUTH_HEADER, res?.token!, COOKIES_OPTION);
 
     cookiesStore.set("user_session", "true", COOKIES_OPTION); //To tell the client the user isLogged In
+    cookiesStore.set("role", res.user.role, COOKIES_OPTION);
 
     // Return the response with cookies
     return NextResponse.json(

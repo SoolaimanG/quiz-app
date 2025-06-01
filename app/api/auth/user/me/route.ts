@@ -27,8 +27,6 @@ export async function GET(request: NextRequest) {
       { ...HTTPSTATUS["200"] }
     );
   } catch (error) {
-    console.log(error);
-
     return NextResponse.json(
       {
         status: false,
@@ -65,6 +63,18 @@ export async function PATCH(request: NextRequest) {
     }
 
     const userService = new UserService(user?.id);
+
+    //If the user has a profile profile to update, this block will run
+    if (result?.data?.profilePicture) {
+      const { secure_url } = await userService.uploadProfileImage(
+        result.data.profilePicture
+      );
+
+      result.data = {
+        ...result.data,
+        profilePicture: secure_url,
+      };
+    }
 
     const updatedUser = await userService.updateDetail(user?.id, result.data);
 

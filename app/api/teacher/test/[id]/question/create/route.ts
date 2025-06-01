@@ -2,6 +2,7 @@ import { _CONSTANTS, COOKIES_OPTION, HTTPSTATUS } from "@/lib/constants";
 import { isAuthenticated } from "@/middlewares/authentication-checkers.middlewares";
 import { IRole } from "@/models/users.model";
 import { Test } from "@/server/test.service";
+import { IOption } from "@/types/index.types";
 import { questionCreationSchema } from "@/validations/question.schema";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -43,6 +44,15 @@ export async function POST(
       test: "",
     });
 
+    let options: IOption[] = [];
+
+    if (newQuestion._id && !!result?.data?.options?.length) {
+      options = await testService.createOptionForQuestion(
+        newQuestion?._id,
+        result.data.options as IOption[]
+      );
+    }
+
     const auth = await user?.refreshSessionToken?.();
 
     if (auth?.sessionToken) {
@@ -59,7 +69,7 @@ export async function POST(
       {
         status: true,
         statusCode: 201,
-        data: newQuestion,
+        data: { newQuestion, options },
       },
       HTTPSTATUS["201"]
     );

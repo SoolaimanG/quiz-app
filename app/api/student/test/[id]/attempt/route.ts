@@ -1,46 +1,51 @@
 import { _CONSTANTS, COOKIES_OPTION, HTTPSTATUS } from "@/lib/constants";
 import { isAuthenticated } from "@/middlewares/authentication-checkers.middlewares";
 import { IRole } from "@/models/users.model";
-import { Student } from "@/server/student.service";
-import { updateStudentSchema } from "@/validations/student.schema";
+import { Test } from "@/server/test.service";
+import { attemptQuestionSchema } from "@/validations/test.schema";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function PATCH(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
+
     const body = await request.json();
     const cookiesStore = await cookies();
 
-    const result = updateStudentSchema.safeParse(body);
+    const result = attemptQuestionSchema.safeParse(body);
 
     if (!result.success) {
       return NextResponse.json(
-        { status: false, statusCode: 400, errors: result.error.errors },
+        {
+          status: false,
+          statusCode: 400,
+          errors: result.error.errors,
+          message: result.error.message,
+        },
         HTTPSTATUS["400"]
       );
     }
 
-    const { res, user } = await isAuthenticated(request, IRole.STUDENT);
+    const { user, res } = await isAuthenticated(request, IRole.STUDENT);
 
     if (!res.status) {
       return NextResponse.json(res, HTTPSTATUS["401"]);
     }
 
-    const studentService = new Student(user?.identifier);
+    const testService = new Test(user?.identifier, id);
 
-    const student = await studentService?.getStudentProfile({
-      query: { user: user?._id },
-      throwOn404: true,
-    });
-
-    const updatedStudent = await studentService?.updateStudentProfile(
-      student?._id as string,
-      result.data
+    const response = await testService.attemptQuestion(
+      result.data.question,
+      result.data.answer
     );
 
     const auth = await user?.refreshSessionToken?.();
 
-    if (auth) {
+    if (auth.sessionToken) {
       cookiesStore.set(
         _CONSTANTS.AUTH_HEADER,
         auth?.sessionToken,
@@ -53,14 +58,18 @@ export async function PATCH(request: NextRequest) {
       {
         status: true,
         statusCode: 200,
-        message: "Your profile has been updated successfully",
-        data: updatedStudent,
+        message: "Question Attempted successfully",
+        data: response,
       },
       HTTPSTATUS["200"]
     );
   } catch (error) {
     return NextResponse.json(
-      { status: false, statusCode: 500, message: (error as Error).message },
+      {
+        status: 500,
+        statusCode: 500,
+        message: (error as Error).message,
+      },
       HTTPSTATUS["500"]
     );
   }

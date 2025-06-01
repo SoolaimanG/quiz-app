@@ -32,6 +32,24 @@ export async function POST(request: NextRequest) {
 
     const testService = new Test(user?.identifier);
 
+    if (result.data.media) {
+      const uploadResult = await testService.uploadImage(
+        [result.data.media.url],
+        "image"
+      );
+
+      if (uploadResult?.[0].secure_url) {
+        result.data = {
+          ...result.data,
+          media: {
+            publicId: uploadResult[0].public_id,
+            url: uploadResult[0].secure_url,
+            type: "image",
+          },
+        };
+      }
+    }
+
     const newTest = await testService.createTest(result.data);
 
     const auth = await user?.refreshSessionToken?.();

@@ -3,7 +3,6 @@ import { Model, Schema, UpdateQuery, model, models } from "mongoose";
 import { Subject } from "./subjects.model";
 import { Student } from "./student.model";
 import { User } from "./users.model";
-import { TeacherService } from "@/server/services";
 
 const teacherSchema = new Schema<ITeacher>({
   canCreateTest: {
@@ -17,29 +16,6 @@ const teacherSchema = new Schema<ITeacher>({
   students: {
     type: [{ ref: "Student", type: Schema.Types.ObjectId }],
     default: [],
-    validate: {
-      validator: async function (students: string[]) {
-        if (!students || students.length === 0) return true;
-
-        // Check if all students exists and are offering the subject the teacher is offering
-        const existingStudents = await Student.find({
-          _id: { $in: students },
-          subjects: { $in: this.subjects },
-        });
-
-        return existingStudents.length === students.length;
-
-        //        // Verify teacher is assigned to these subjects
-        //        const teacherSubjects = await Subject.find({
-        //          _id: { $in: this.subjects },
-        //          teacher: this._id
-        //        });
-        //
-        //        return teacherSubjects.length === this.subjects.length;
-      },
-      message:
-        "Students must exist and be enrolled in subjects taught by this teacher",
-    },
   },
   subjects: {
     type: [
@@ -114,6 +90,23 @@ teacherSchema.pre("save", async function (next) {
         if (subjectsCount !== this.subjects.length) {
           const err = new Error(
             "Some subjects you provided are not assigned to you, please contact the admin."
+          );
+          return next(err);
+        }
+      }
+    }
+
+    if (this.isModified("students")) {
+      if (this.students && this.students.length > 0) {
+        const studnetCount = await Student.countDocuments({
+          _id: { $in: this.students },
+          subjects: { $in: this.subjects },
+        });
+
+        // If any subject is not properly assigned to this teacher
+        if (studnetCount !== this?.students?.length) {
+          const err = new Error(
+            "Some student you provided do not offer your course, please contact the admin."
           );
           return next(err);
         }

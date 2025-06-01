@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
     const query = q.get("query")!;
     const sort = q.get("sort") as "asc" | "desc";
     const sortKey = q.get("sortKey")!;
+    const isActive = q.get("isActive")!;
 
     const { res, user } = await isAuthenticated(request, IRole.TEACHER);
 
@@ -37,16 +38,17 @@ export async function GET(request: NextRequest) {
       query,
       sort,
       sortKey,
+      isActive,
     });
 
     return NextResponse.json(
       {
         status: true,
-        statusCode: 201,
-        message: "Test created successfully",
+        statusCode: 200,
+        message: "Test(s) fetched successfully",
         data: tests,
       },
-      HTTPSTATUS["201"]
+      HTTPSTATUS["200"]
     );
   } catch (error) {
     return NextResponse.json(

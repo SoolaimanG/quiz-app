@@ -1,13 +1,15 @@
-import { HTTPSTATUS } from "@/lib/constants";
+import { _CONSTANTS, COOKIES_OPTION, HTTPSTATUS } from "@/lib/constants";
 import { IRole } from "@/models/users.model";
-import { connectToDatabase } from "@/server/_libs";
+import { aj, connectToDatabase } from "@/server/_libs";
 import { UserService } from "@/server/services";
 import accountCreationSchema from "@/validations/account-creation-schema";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    const cookiesStore = await cookies();
 
     const result = accountCreationSchema.safeParse(body);
 
@@ -15,7 +17,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           status: false,
-          message: "ACCOUNT_CREATION_ERROR: Missing required parameters",
+          message: result.error.message,
           errors: result.error.errors,
           statusCode: 400,
         },
@@ -36,6 +38,36 @@ export async function POST(request: Request) {
         },
         { ...HTTPSTATUS["400"] }
       );
+    }
+
+    const decision = await aj.protect(request, { email, requested: 1 });
+
+    if (decision.isDenied()) {
+      if (decision.reason.isBot()) {
+        return NextResponse.json(
+          {
+            status: false,
+            statusCode: 403,
+            message:
+              "SYSTEM_SECURITY: Our internal system just raised a concern that you might be a bot",
+            errors: decision.results,
+          },
+          HTTPSTATUS["403"]
+        );
+      }
+
+      if (decision.reason.isEmail()) {
+        return NextResponse.json(
+          {
+            status: false,
+            statusCode: 403,
+            message:
+              "SYSTEM_SECURITY: Our internal system just raised a concern that the email you provided might be a fake email address, Please try changing your email address and try again",
+            errors: decision.results,
+          },
+          HTTPSTATUS["403"]
+        );
+      }
     }
 
     await connectToDatabase();
@@ -60,6 +92,15 @@ export async function POST(request: Request) {
         name,
         subjects
       );
+    }
+
+    if (newlyCreatedUser) {
+      cookiesStore.set(
+        _CONSTANTS.AUTH_HEADER,
+        newlyCreatedUser?.authentication?.sessionToken!,
+        COOKIES_OPTION
+      );
+      cookiesStore.set("user_session", "true", COOKIES_OPTION);
     }
 
     return NextResponse.json(

@@ -8,14 +8,27 @@ import {
   ISubject,
   ITeacher,
   IUser,
+  UploadDocsOptions,
 } from "@/types/index.types";
 import mongoose, { Document } from "mongoose";
-import { authentication } from "./_libs";
+import { authentication, getDocumentInfo, random, sendEmail } from "./_libs";
 import { Student } from "@/models/student.model";
 import { IAccountCreationInvite } from "@/types/invites.types";
 import { genSalt, hash } from "bcrypt";
 import { Log as LogModel } from "@/models/log.model";
 import { Subject as SubjectModel } from "@/models/subjects.model";
+import { ForgetPassword } from "@/models/forget-password.model";
+import { IForgetPassword } from "@/types/forget-password.types";
+import { v2 as cloudinary, UploadApiResponse } from "cloudinary";
+import { IAccecptableFile } from "@/types/client.types";
+import { TransformationOptions } from "cloudinary";
+
+//Configuring the cloudinary sdk
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_NAME!,
+  api_key: process.env.CLOUDINARY_API_KEY!,
+  api_secret: process.env.CLOUDINARY_API_SECRET!,
+});
 
 export class Session {
   session: mongoose.ClientSession | null = null;
@@ -477,6 +490,279 @@ export class UserService {
       },
     };
   }
+
+  public async requestResetPassword(identifier: string) {
+    try {
+      this.session.session?.startTransaction();
+
+      const user = await User.findOne({
+        $or: [{ identifier }, { email: identifier }],
+      }).session(this.session.session);
+
+      if (!user) {
+        throw new Error(
+          "We could not locate your account in our database, If you believe this is not correct, Please contact the admin"
+        );
+      }
+
+      this.log.logPayload = {
+        ...(this.log.logPayload as ILogs),
+        user: user?._id,
+      };
+
+      const REQUEST_THRESHOLD = 4 as const;
+
+      // Check if user has made any password reset requests in the last hour
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+      const requestInLastHourCount = await ForgetPassword.countDocuments({
+        createdAt: {
+          $gte: oneHourAgo,
+        },
+        user: user?._id!,
+      }).session(this.session.session);
+
+      if (requestInLastHourCount >= REQUEST_THRESHOLD) {
+        throw new Error(
+          "PASSWORD_RESET_REQUEST_FAILS: Look's like you have requested password reset."
+        );
+      }
+
+      const RESET_TOKEN = random(16);
+
+      const passwordRequestPayload: IForgetPassword = {
+        expiresAt: new Date(
+          new Date().getFullYear(),
+          new Date().getMonth(),
+          new Date().getMonth(),
+          new Date().getHours(),
+          new Date().getMinutes() + 30
+        ),
+        resetToken: RESET_TOKEN,
+        user: user?._id,
+      };
+
+      const forgetPassword = new ForgetPassword(passwordRequestPayload);
+
+      await forgetPassword.save({
+        session: this.session?.session,
+        validateBeforeSave: true,
+      });
+
+      const emailTemplate = `
+        <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 5px;">
+          <h2 style="color: #333;">Password Reset Request</h2>
+          <p>Hello,</p>
+          <p>We received a request to reset your password. Click the button below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.CLIENT_URL}/reset-password?token=${RESET_TOKEN}" 
+               style="background-color: #007bff; 
+                      color: white; 
+                      padding: 12px 24px; 
+                      text-decoration: none; 
+                      border-radius: 4px;
+                      font-weight: bold;">
+              Reset Password
+            </a>
+          </div>
+          <p>This link will expire in 30 minutes. If you did not request a password reset, please ignore this email.</p>
+          <p>For security reasons, please do not share this link with anyone.</p>
+          <p>If the button doesn't work, copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #666;">
+            ${process.env.URL}/auth/reset-password/${RESET_TOKEN}
+          </p>
+          <p style="margin-top: 30px;">Best regards,<br>Quiz App Team</p>
+        </div>
+      `;
+
+      sendEmail({
+        emails: user.email,
+        email: emailTemplate,
+        subject: "Password Reset Token",
+      });
+
+      await this.log.info("User request password reset", {
+        action: "password-reset",
+      });
+      await this.session.session?.commitTransaction();
+    } catch (error) {
+      if (this.session?.session) {
+        await this.session.session.abortTransaction();
+      }
+      this.log.error(
+        `User tries to request password reset but fails, Reason: ${
+          (error as Error).message
+        }`,
+        {
+          action: "password-reset-fails",
+        }
+      );
+      throw error;
+    }
+  }
+
+  public async resetPassword(resetToken: string, newPassword: string) {
+    try {
+      this.log.logPayload = {
+        ...(this.log.logPayload as ILogs),
+        user: resetToken,
+      };
+
+      const forgetPassword = await ForgetPassword.findOne({ resetToken });
+
+      if (!forgetPassword) {
+        throw new Error(
+          "PASSWORD_RESET_FAILED: Could not find the reset token provided"
+        );
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(forgetPassword.expiresAt);
+
+      if (now > expiresAt) {
+        throw new Error(
+          "PASSWORD_RESET_FAILED: The token you provided seems to have been expired."
+        );
+      }
+
+      const user = await this.getUser({
+        query: { _id: forgetPassword?.user },
+        throwOn404: true,
+        select: "+authentication",
+      });
+
+      const salt = await genSalt(10);
+
+      user.authentication.salt = salt;
+      user.authentication.password = await hash(newPassword, salt!);
+
+      user.clearSession?.();
+
+      await Promise.all([
+        user?.save({
+          session: this.session.session,
+          validateModifiedOnly: true,
+        }),
+        forgetPassword?.deleteOne({ session: this.session?.session }),
+      ]);
+
+      return "Password reset successful, Please proceed to login your account.";
+    } catch (error) {
+      if (this.session?.session) {
+        await this.session.session.abortTransaction();
+      }
+      this.log.error(
+        `User tries to request password reset but fails, Reason: ${
+          (error as Error).message
+        }`,
+        {
+          action: "password-reset-fails",
+        }
+      );
+      throw error;
+    }
+  }
+
+  public async uploadImage(docs: string[], type: IAccecptableFile) {
+    let uploadResults: UploadApiResponse[] = [];
+
+    docs.forEach(async (doc) => {
+      const docInfo = getDocumentInfo(doc);
+
+      const acceptableFiles = new Set([
+        "pdf",
+        "image",
+        "vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ]);
+
+      if (!docInfo?.type || !acceptableFiles.has(docInfo?.type)) {
+        throw new Error(
+          "FILE_TYPE_UNACCEPTED: The type of file you provided is not a type of file that is accepted."
+        );
+      }
+
+      if (!docInfo?.sizeMB || docInfo?.sizeMB > 3) {
+        throw new Error(
+          "FILE_SIZE_EXCEEDED: The file you provided is too large, Please upload a file that is less than 3MB"
+        );
+      }
+
+      if (!docInfo?.hasDataUri) {
+        throw new Error("FILE_UPLOAD_ERROR: Please use a valid file in base64");
+      }
+
+      const randomFileName = random(16);
+
+      const transformation: TransformationOptions = [];
+
+      const result = await cloudinary.uploader.upload(doc, {
+        resource_type: "auto",
+        public_id: randomFileName,
+        folder: type,
+        use_filename: true,
+        unique_filename: false,
+        transformation,
+        overwrite: true,
+      });
+
+      uploadResults.push(result);
+    });
+
+    return uploadResults;
+  }
+
+  async uploadProfileImage(base64Data: string) {
+    if (!base64Data.startsWith("data:")) {
+      throw new Error("Please upload image in base 64 format");
+    }
+
+    const matches = base64Data.match(/^data:image\/([a-zA-Z]*);base64,/);
+
+    const sizeInBytes = (base64Data.length * 3) / 4;
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+
+    const MAX_SIZE = 3;
+
+    if (sizeInMB > MAX_SIZE) {
+      throw new Error(
+        `Please use a file that the file is less than ${MAX_SIZE} MB`
+      );
+    }
+
+    if (!matches) {
+      throw new Error("Invalid image, Please use image encoded in base64 data");
+    }
+
+    const user = await this.getUser({
+      throwOn404: true,
+      toJSON: true,
+    });
+
+    const userId = user?._id;
+
+    try {
+      const result = await cloudinary.uploader.upload(base64Data, {
+        public_id: `profile_${userId}`,
+        folder: "profiles",
+        gravity: "face",
+        crop: "thumb",
+        width: 400,
+        height: 400,
+        quality: "auto:good",
+        eager: [
+          { width: 150, height: 150, crop: "thumb", gravity: "face" },
+          { width: 300, height: 300, crop: "thumb", gravity: "face" },
+          { width: 50, height: 50, crop: "thumb", gravity: "face" },
+        ],
+        detection: "face",
+        overwrite: true,
+      });
+
+      return result;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 export class AccountInvitation extends UserService {
@@ -588,7 +874,14 @@ export class TeacherService extends UserService {
 
       const teacher = await Teacher.findOne(
         options?.query || { user: user._id }
-      ).select(options?.select!);
+      )
+        .populate("user")
+        .populate({ path: "subjects", select: "+name" })
+        .populate({
+          path: "students",
+          populate: { path: "user", select: "email name isActive identifier" },
+        })
+        .select(options?.select!);
 
       if (!teacher && options?.throwOn404) {
         throw new Error("TEACHER_QUERY_ERROR: Teacher not found.");
@@ -692,6 +985,24 @@ export class TeacherService extends UserService {
 
       throw error;
     }
+  }
+
+  async getStudentOfferingMySubject() {
+    const teacher = await this.getTeacherProfile({ throwOn404: true });
+
+    const students = await Student.find({
+      subjects: { $in: teacher?.subjects },
+    })
+      .populate({
+        path: "user",
+        select: "name email profilePicture identifier isActive",
+      })
+      .populate({
+        path: "subjects",
+        select: "name",
+      });
+
+    return students;
   }
 }
 

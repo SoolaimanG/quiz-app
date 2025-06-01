@@ -34,7 +34,6 @@ const authenticationSchema = new Schema(
     },
     sessionToken: {
       type: String,
-      required: true,
     },
     expiresAt: {
       type: Date, // Using Date type for timestamp

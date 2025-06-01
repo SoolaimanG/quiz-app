@@ -3,6 +3,7 @@ import { model, Model, models, Schema } from "mongoose";
 import { Student } from "./student.model";
 import { Subject } from "./subjects.model";
 import { Question, QuestionAnswer, QuestionOption } from "./question.model";
+import { random } from "@/server/_libs";
 
 const TestSettingSchema = new Schema<ITestSettings>(
   {
@@ -66,6 +67,10 @@ const TestSettingSchema = new Schema<ITestSettings>(
     submitOnPageLeave: {
       type: Boolean,
       default: true,
+    },
+    allowInternalSystemToGradeTest: {
+      type: Boolean,
+      default: false,
     },
   },
   { _id: false }
@@ -144,6 +149,11 @@ const TestSchema = new Schema<ITest>({
   isActive: {
     type: Boolean,
     default: false,
+  },
+  secretKey: {
+    select: false,
+    type: String,
+    default: random(16),
   },
 });
 

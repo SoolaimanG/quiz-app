@@ -1,3 +1,4 @@
+import { IMedia } from "@/types/index.types";
 import { isValidObjectId } from "mongoose";
 import { z } from "zod";
 
@@ -18,10 +19,10 @@ const createTestSchema = z.object({
     .optional(),
   allowedStudents: z
     .array(z.string().refine((value) => isValidObjectId(value)))
-    .min(1),
+    .optional(),
   description: z.string().min(10).max(500),
   instructions: z.string().min(10).max(500),
-  isActive: z.boolean().default(true),
+  isActive: z.boolean().default(true).optional(),
   settings: z
     .object({
       endNote: z.string().optional(),
@@ -49,6 +50,13 @@ const createTestSchema = z.object({
     .optional(),
   subject: z.string().refine((value) => isValidObjectId(value)),
   title: z.string().min(3).max(100),
+  media: z
+    .object({
+      url: z.string().url(),
+      publicId: z.string().optional(),
+      type: z.enum(["image", "document"]),
+    })
+    .optional(),
 });
 
 const updateTestSchema = z.object({
@@ -102,4 +110,46 @@ const updateTestSchema = z.object({
   title: z.string().optional(),
 });
 
-export { createTestSchema, updateTestSchema };
+const startTestSchema = z.object({
+  accessCode: z.string().min(2).optional(),
+});
+
+const gradeTestSchema = z.object({
+  studentId: z.string().refine((value) => isValidObjectId(value)),
+  secretKey: z.string().min(10),
+});
+
+const attemptQuestionSchema = z.object({
+  question: z.string().refine((value) => isValidObjectId(value)),
+  answer: z.string().refine((value) => isValidObjectId(value)),
+});
+
+const markQuestionAsCorrectSchema = z.object({
+  testAttemptId: z.string().refine((value) => isValidObjectId(value)),
+});
+
+const markTestAsResultsAreReadySchema = z.object({
+  studentIds: z
+    .array(z.string().refine((value) => isValidObjectId(value)))
+    .optional(),
+  notifyViaEmail: z.boolean().default(false),
+  allStudent: z.boolean().default(false),
+});
+
+const testAttemptUpdateSchema = z.object({
+  score: z.number().optional(),
+  status: z.enum(["in-progress", "completed", "not-started"]).optional(),
+  teacherFeedback: z.string().optional(),
+  testAttemptId: z.string().refine((value) => isValidObjectId(value)),
+});
+
+export {
+  createTestSchema,
+  updateTestSchema,
+  startTestSchema,
+  attemptQuestionSchema,
+  gradeTestSchema,
+  markQuestionAsCorrectSchema,
+  markTestAsResultsAreReadySchema,
+  testAttemptUpdateSchema,
+};
