@@ -7,6 +7,7 @@ import accountCreationSchema from "@/validations/account-creation-schema";
 import {
   IApiResponse,
   IOngoingTest,
+  IOption,
   IQuestion,
   IStudent,
   ITeacher,
@@ -18,7 +19,7 @@ import { z } from "zod";
 import loginSchema from "@/validations/login.schema";
 import { requestPasswordReset } from "@/validations/forget-password.schema";
 import { _CONSTANTS } from "./constants";
-import { TestsResponse } from "@/types/client.types";
+import { Pagination, TestsResponse } from "@/types/client.types";
 import { createTestSchema } from "@/validations/test.schema";
 
 export class Utils {
@@ -273,6 +274,70 @@ export class Utils {
     return res.data;
   }
 
+  async createQuestion(
+    testId: string,
+    question: Partial<IQuestion>,
+    options?: IOption[]
+  ) {
+    const res = await this.api.post(
+      `/api/teacher/test/${testId}/question/create`,
+      { ...question, options }
+    );
+
+    return res.data;
+  }
+
+  async updateQuestion(
+    testId: string,
+    questionId: string,
+    updates: Partial<IQuestion>
+  ) {
+    const res = await this.api.patch<IApiResponse<IQuestion>>(
+      `/api/teacher/test/${testId}/question/${questionId}`,
+      updates
+    );
+
+    return res.data;
+  }
+
+  async deleteQuestion(testId: string, questionId: string) {
+    const res = await this.api.delete<IApiResponse>(
+      `/api/teacher/test/${testId}/question/${questionId}`
+    );
+    return res.data;
+  }
+
+  async createOption(testId: string, questionId: string, options: IOption[]) {
+    const res = await this.api.post<IApiResponse<IOption[]>>(
+      `/api/teacher/test/${testId}/question/${questionId}/options`,
+      options
+    );
+
+    return res.data;
+  }
+
+  async updateOption(
+    testId: string,
+    questionId: string,
+    optionId: string,
+    updates: Partial<IOption>
+  ) {
+    const res = await this.api.patch<IApiResponse<IOption>>(
+      `/api/teacher/test/${testId}/question/${questionId}/options/${optionId}`,
+      updates
+    );
+
+    return res.data;
+  }
+
+  async deleteOption(testId: string, questionId: string, optionId: string) {
+    const res = await this.api.delete<IApiResponse>(
+      `/api/teacher/test/${testId}/question/${questionId}/options/${optionId}`
+    );
+
+    return res.data;
+  }
+
   /**
    * ===============================================
    *            ALL USERS: AUTH REQUIRED           =
@@ -289,7 +354,8 @@ export class Utils {
 
   async getTestQuestions(
     testId: string,
-    options?: { offset?: number; limit?: number }
+    options?: { offset?: number; limit?: number },
+    type: "teacher" | "student" = "teacher"
   ) {
     const queryParams = new URLSearchParams({
       offset: String(options?.offset || 0),
@@ -298,7 +364,47 @@ export class Utils {
 
     const res = await this.api.get<
       IApiResponse<{ totalQuestions: number; questions: IQuestion[] }>
-    >(`/api/teacher/test/${testId}/question/all?${queryParams.toString()}`);
+    >(
+      `/api/${type}/test/${testId}/question${
+        type === "teacher" ? "" : "s"
+      }/all?${queryParams.toString()}`
+    );
+
+    return res.data;
+  }
+
+  async getTests(options?: {
+    limit?: number;
+    offset?: number;
+    query?: string;
+    sort?: "asc" | "desc";
+    sortKey?: string;
+    isActive?: boolean;
+  }) {
+    const queryParams = new URLSearchParams({
+      limit: String(options?.limit || 10),
+      offset: String(options?.offset || 0),
+      query: String(options?.query || ""),
+      sort: String(options?.sort || "asc"),
+      sortKey: String(options?.sortKey || "createdAt"),
+      isActive: String(options?.isActive),
+    });
+
+    const res = await this.api.get<
+      IApiResponse<{
+        tests: ITest[];
+        filterTestCount: number;
+        pagination: Pagination;
+      }>
+    >(`/api/teacher/test/all?${queryParams?.toString()}`);
+
+    return res.data;
+  }
+
+  async getQuestionOptions(testId: string, questionId: string) {
+    const res = await this.api.get<IApiResponse<IOption[]>>(
+      `/api/test/${testId}/question/${questionId}/options`
+    );
 
     return res.data;
   }

@@ -1,5 +1,12 @@
 import { ForwardRefExoticComponent, ReactNode, RefAttributes } from "react";
-import { IRole, ITest, ITestSettings, IUser } from "./index.types";
+import {
+  IOption,
+  IQuestion,
+  IRole,
+  ITest,
+  ITestSettings,
+  IUser,
+} from "./index.types";
 import { LucideProps } from "lucide-react";
 
 export interface ITestimonial {
@@ -92,6 +99,25 @@ export interface editTestStore {
   navigateToStep: (step: number) => void;
 
   isLoading: boolean;
+  setIsLoading: (isLoading: boolean) => void;
+}
+
+export interface IQuestionStore {
+  currentTest?: string;
+  setCurrentTest: (test?: string) => void;
+
+  questions?: Map<string, IQuestion>;
+  setQuestions: (questions: IQuestion[]) => void;
+  addQuestion: (question: IQuestion) => void;
+  removeQuestion: (questionId: string) => void;
+  editQuestion: (questionId: string, payload: Partial<IQuestion>) => void;
+  addOption: (payload: IOption) => void;
+  removeOption: (optionId: string) => void;
+  editOption: (optionId: string, payload: IOption) => void;
+  addOptions: (options: IOption[]) => void;
+  options: Map<string, IOption>;
+
+  isLoading?: boolean;
   setIsLoading: (isLoading: boolean) => void;
 }
 

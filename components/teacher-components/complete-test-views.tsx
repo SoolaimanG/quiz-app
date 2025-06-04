@@ -4,7 +4,7 @@ import React, { FC, useState } from "react";
 import { TestDetailCard } from "./test-detail-card";
 import { useEditTest } from "@/store/test.store";
 import { cn } from "@/lib/client-utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ConfigureTest } from "./configure-test";
 import {
   Sheet,
@@ -103,7 +103,7 @@ export const CompleteTestViews: FC<{ testId: string }> = ({ testId }) => {
               features
             </SheetDescription>
           </SheetHeader>
-          <ScrollArea className="p-4 lg:h-[640px] md:h-[630px] h-[470px] w-full">
+          <ScrollArea className="p-4 h-[calc(100vh-13rem)] w-full">
             <ConfigureTest />
           </ScrollArea>
           <SheetFooter>
@@ -162,7 +162,7 @@ export const CompleteTestViews: FC<{ testId: string }> = ({ testId }) => {
                           {utils.getInitials(user?.name)}
                         </AvatarFallback>
                       </Avatar>
-                      {user.name}
+                      {user?.name}
                       <Button
                         size="icon"
                         variant="ghost"

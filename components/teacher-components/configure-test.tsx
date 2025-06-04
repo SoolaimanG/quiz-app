@@ -6,8 +6,10 @@ import {
   CircleDashed,
   ClockIcon,
   CopyIcon,
+  KeySquare,
   LockIcon,
   NavigationIcon,
+  PinIcon,
   PrinterIcon,
   ScrollIcon,
   SendIcon,
@@ -19,6 +21,8 @@ import { Switch } from "../ui/switch";
 import { Separator } from "../ui/separator";
 import { ITestConfigureList } from "@/types/client.types";
 import { cn } from "@/lib/client-utils";
+import { Button } from "../ui/button";
+import { ConfigureAccessCode } from "../configure-access-code";
 
 export const ConfigureTest = () => {
   const { data: test, setData } = useEditTest();
@@ -121,6 +125,42 @@ export const ConfigureTest = () => {
 
   return (
     <div className="w-full space-y-4">
+      <div className="w-full">
+        <h2>Access Code</h2>
+        <div className="w-full">
+          <div
+            className={cn(
+              "p-2 rounded-xl border-2 border-primary flex gap-2 mt-3 w-full"
+            )}
+          >
+            <div className="flex gap-4 w-full">
+              <div className="border-4 bg-accent rounded-xl w-fit h-fit p-1 flex items-center justify-center">
+                <KeySquare size={19} />
+              </div>
+              <div className="w-[80%]">
+                <h2 className="text-sm">Access Code</h2>
+                <div>
+                  <Text className="flex items-center gap-1">
+                    Check this to configure your test with access code.{" "}
+                  </Text>
+                  <ConfigureAccessCode>
+                    <Button variant="link" className="px-0">
+                      Configure access code
+                    </Button>
+                  </ConfigureAccessCode>
+                </div>
+              </div>
+            </div>
+            <Switch
+              checked={!!Object.keys(test?.accessCode || {})?.length}
+              onCheckedChange={(e) => console.log(e)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
       <div className="w-full">
         <h2>Questions & Options</h2>
         <div className="w-full">

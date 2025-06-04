@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       toJson: true,
     });
 
-    const tests = await testService.getTests({
+    const response = await testService.getTests({
       teacher: teacher?._id,
       limit,
       offset,
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         status: true,
         statusCode: 200,
         message: "Test(s) fetched successfully",
-        data: tests,
+        data: response,
       },
       HTTPSTATUS["200"]
     );

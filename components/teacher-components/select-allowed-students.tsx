@@ -13,7 +13,7 @@ import { EmptyUI } from "../empty-ui";
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { LINKS } from "@/lib/constants";
-import { IStudent, ISubject, IUser } from "@/types/index.types";
+import { IStudent, IUser } from "@/types/index.types";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { cn } from "@/lib/client-utils";

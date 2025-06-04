@@ -104,58 +104,61 @@ const TestAccessCode = new Schema<ITestAccessCode>(
   { _id: false }
 );
 
-const TestSchema = new Schema<ITest>({
-  accessCode: { type: TestAccessCode },
-  allowedStudents: {
-    type: [{ type: Schema.Types.ObjectId, ref: "Student", required: true }],
-    validate: {
-      validator: async function (v: string[]) {
-        const studentsThatOfferSubject = await Student.countDocuments({
-          subjects: {
-            $in: this.subject,
-          },
-          _id: { $in: v },
-        });
+const TestSchema = new Schema<ITest>(
+  {
+    accessCode: { type: TestAccessCode },
+    allowedStudents: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Student", required: true }],
+      validate: {
+        validator: async function (v: string[]) {
+          const studentsThatOfferSubject = await Student.countDocuments({
+            subjects: {
+              $in: this.subject,
+            },
+            _id: { $in: v },
+          });
 
-        return studentsThatOfferSubject === v.length;
+          return studentsThatOfferSubject === v.length;
+        },
+        message: "At least one student is not offering your subject",
       },
-      message: "At least one student is not offering your subject",
+    },
+    description: { type: String, required: true, min: 10, max: 255 },
+    instructions: { type: String, required: true, min: 10, max: 255 },
+    settings: { type: TestSettingSchema },
+    teacher: { type: Schema.Types.ObjectId, ref: "Teacher", required: true },
+    title: { type: String, required: true, min: 3, max: 100 },
+    subject: {
+      type: Schema.Types.ObjectId,
+      ref: "Subject",
+      required: true,
+      validate: {
+        validator: async function (v: string) {
+          const teacherSubjects = await Subject.exists({
+            _id: v,
+            teachers: {
+              $in: this.teacher,
+            },
+          });
+
+          return Boolean(teacherSubjects);
+        },
+        message:
+          "You must be teaching this subject before you can create a test for it",
+      },
+    },
+    isActive: {
+      type: Boolean,
+      default: false,
+    },
+    secretKey: {
+      select: false,
+      type: String,
+      default: random(16),
     },
   },
-  description: { type: String, required: true, min: 10, max: 255 },
-  instructions: { type: String, required: true, min: 10, max: 255 },
-  settings: { type: TestSettingSchema },
-  teacher: { type: Schema.Types.ObjectId, ref: "Teacher", required: true },
-  title: { type: String, required: true, min: 3, max: 100 },
-  subject: {
-    type: Schema.Types.ObjectId,
-    ref: "Subject",
-    required: true,
-    validate: {
-      validator: async function (v: string) {
-        const teacherSubjects = await Subject.exists({
-          _id: v,
-          teachers: {
-            $in: this.teacher,
-          },
-        });
-
-        return Boolean(teacherSubjects);
-      },
-      message:
-        "You must be teaching this subject before you can create a test for it",
-    },
-  },
-  isActive: {
-    type: Boolean,
-    default: false,
-  },
-  secretKey: {
-    select: false,
-    type: String,
-    default: random(16),
-  },
-});
+  { timestamps: true }
+);
 
 TestSchema.pre("save", async function (nxt) {
   try {

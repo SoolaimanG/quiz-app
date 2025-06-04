@@ -63,6 +63,8 @@ export async function POST(
       );
 
       cookiesStore.set("user_session", "true", COOKIES_OPTION);
+
+      await user?.save({ validateModifiedOnly: true });
     }
 
     return NextResponse.json(

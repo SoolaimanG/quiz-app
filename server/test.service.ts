@@ -5,6 +5,7 @@ import {
   IOption,
   IQuestion,
   IQuestionsAttempted,
+  IQuestionType,
   ISubject,
   ITest,
   ITestAttempt,
@@ -161,40 +162,42 @@ export class Test extends UserService {
           }
         : {};
 
+      const isActivequeryCondition =
+        options?.isActive && options?.isActive !== "undefined"
+          ? {
+              isActive: options?.isActive === "true",
+            }
+          : {};
+
       const sortDirection = options?.sort === "asc" ? 1 : -1;
 
       const [tests, filterTestCount, totalTest] = await Promise.all([
         TestModel.find(
           {
             ...queryCondition,
+            ...isActivequeryCondition,
             teacher: options?.teacher,
-            isActive: options?.isActive
-              ? options?.isActive === "true"
-                ? true
-                : false
-              : undefined,
           },
           {
             title: 1,
+            description: 1,
             isActive: 1,
             createdAt: 1,
             updatedAt: 1,
+            subject: 1,
             instructions: 1,
-            settings: 1,
+            "settings.timeLimit": 1,
           }
         )
-          .populate({ path: "subject", select: "+name" })
+
+          .populate({ path: "subject", select: "name" })
           .sort({ [options?.sortKey || "createdAt"]: sortDirection })
           .skip(options?.offset || 0)
           .limit(options?.limit || 10),
         TestModel.countDocuments({
           ...queryCondition,
+          ...isActivequeryCondition,
           teacher: options?.teacher,
-          isActive: options?.isActive
-            ? options?.isActive === "true"
-              ? true
-              : false
-            : undefined,
         }),
         TestModel.countDocuments(),
       ]);
@@ -477,6 +480,112 @@ export class Test extends UserService {
     }
   }
 
+  public async updateTestQuestionById(
+    questionId: string,
+    updates: Partial<IQuestion>
+  ) {
+    try {
+      this?.session?.session?.startTransaction();
+
+      const teacher = await this.teacher?.getTeacherProfile({
+        throwOn404: true,
+      });
+
+      await this.getTest({
+        query: { teacher: teacher?._id, _id: this.id },
+        throwOn404: true,
+      });
+
+      const question = await Question.findById(questionId);
+
+      if (!question) {
+        throw new Error("Question not found");
+      }
+
+      question.question = updates.question || question.question;
+      question.booleanAnswer = updates.booleanAnswer || question.booleanAnswer;
+      question.explanation = updates.explanation || question.explanation;
+      question.hint = updates.hint || question.hint;
+      question.score = updates.score || question.score;
+
+      const updatedQuestion = await question.save({
+        session: this.session?.session,
+        validateModifiedOnly: true,
+      });
+
+      await this.log.info(`Updated a question for test with id ${this.id}`, {
+        action: "test_question_updated",
+      });
+
+      await this?.session?.session?.commitTransaction();
+
+      return updatedQuestion.toJSON();
+    } catch (error) {
+      this.log.error(
+        `Tries to update test but fails, Reason: ${(error as Error).message}`
+      );
+
+      if (this.session?.session) {
+        await this.session.session?.abortTransaction();
+      }
+
+      throw error;
+    }
+  }
+
+  public async deleteTestQuestionById(questionId: string) {
+    try {
+      this?.session?.session?.startTransaction();
+
+      const teacher = await this.teacher?.getTeacherProfile({
+        throwOn404: true,
+      });
+
+      const { isActive = false } = await this.getTest({
+        query: { teacher: teacher?._id, _id: this.id },
+        throwOn404: true,
+      });
+
+      if (isActive) {
+        throw new Error("Cannot delete a question from an active test");
+      }
+
+      await Promise.all([
+        Question.findByIdAndDelete(questionId, {
+          session: this.session.session,
+        }),
+        QuestionOption.deleteMany(
+          { question: questionId },
+          { session: this.session.session! }
+        ),
+        TestAttempt.updateMany(
+          { "questionsAttempted.question": questionId },
+          { $pull: { questionsAttempted: { question: questionId } } }
+        ),
+      ]);
+
+      await this.log.info(`Deleted a question for test with id ${this.id}`, {
+        action: "test_question_deleted",
+      });
+
+      await this?.session?.session?.commitTransaction();
+
+      return true;
+    } catch (error) {
+      this.log.error(
+        `Tries to delete a question but fails, Reason: ${
+          (error as Error).message
+        }`
+      );
+
+      if (this.session?.session) {
+        await this.session.session?.abortTransaction();
+      }
+
+      throw error;
+    }
+  }
+
   public async getOptions(
     questionId: string,
     role: RoleTypes,
@@ -527,6 +636,12 @@ export class Test extends UserService {
         throw new Error("Could not find the question with this Id");
       }
 
+      const allowedTypes: IQuestionType[] = ["mcq", "obj"];
+
+      if (!allowedTypes.includes(question?.type)) {
+        throw new Error("Could not create option for this question type");
+      }
+
       await this.getTest({
         query: { _id: this.id, teacher: teacher?._id },
         throwOn404: true,
@@ -555,6 +670,111 @@ export class Test extends UserService {
       }
       this.log.error(
         `Try creating option for question ${questionId} but failed, Reason: ${
+          (error as Error).message
+        }`
+      );
+
+      throw error;
+    }
+  }
+
+  public async updateOptionForQuestion(
+    questionId: string,
+    optionId: string,
+    updates: Partial<IOption>
+  ) {
+    try {
+      this.session.session?.startTransaction();
+
+      const teacher = await this.teacher?.getTeacherProfile({
+        throwOn404: true,
+      });
+
+      const test = await this.getTest({
+        query: { _id: this.id, teacher: teacher?._id },
+        throwOn404: true,
+      });
+
+      const question = await Question.findOne({
+        _id: questionId,
+        test: test?._id,
+      });
+
+      if (!question) {
+        throw new Error("Could not find the question with this Id");
+      }
+
+      const option = await QuestionOption.findById(optionId);
+
+      if (!option) {
+        throw new Error("Could not find the option with this Id");
+      }
+
+      option.option = updates.option || option.option;
+      option.isCorrect = updates.isCorrect || option.isCorrect;
+      option.media = updates.media || option.media;
+
+      const updatedOption = await option.save({
+        session: this.session.session,
+        validateModifiedOnly: true,
+      });
+
+      return updatedOption?.toJSON();
+    } catch (error) {
+      if (this.session?.session) {
+        await this?.session?.session?.abortTransaction();
+      }
+      this.log.error(
+        `Try updating option for question ${questionId} but failed, Reason: ${
+          (error as Error).message
+        }`
+      );
+
+      throw error;
+    }
+  }
+
+  public async deleteOptionForQuestion(questionId: string, optionId: string) {
+    try {
+      this.session.session?.startTransaction();
+
+      const teacher = await this.teacher?.getTeacherProfile({
+        throwOn404: true,
+      });
+
+      const test = await this.getTest({
+        query: { _id: this.id, teacher: teacher?._id },
+        throwOn404: true,
+      });
+
+      const question = await Question.findOne({
+        _id: questionId,
+        test: test?._id,
+      });
+
+      if (!question) {
+        throw new Error("Could not find the question with this Id");
+      }
+
+      const option = await QuestionOption.findByIdAndDelete(optionId);
+
+      if (!option) {
+        throw new Error("Could not find the option with this Id");
+      }
+
+      await this.log.info(`Deleted an option for question ${questionId}`, {
+        action: "option_deleted",
+      });
+
+      await this.session?.session?.commitTransaction();
+
+      return true;
+    } catch (error) {
+      if (this.session?.session) {
+        await this?.session?.session?.abortTransaction();
+      }
+      this.log.error(
+        `Try deleting option for question ${questionId} but failed, Reason: ${
           (error as Error).message
         }`
       );

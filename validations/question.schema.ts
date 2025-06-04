@@ -31,4 +31,37 @@ const questionCreationSchema = z.object({
   options: optionCreationSchema,
 });
 
-export { questionCreationSchema, optionCreationSchema };
+const updateQuestionSchema = z.object({
+  booleanAnswer: z.boolean().optional(),
+  explanation: z.string().optional(),
+  hint: z.string().optional(),
+  media: z
+    .object({
+      type: z.enum(["image"]),
+      url: z.string(),
+    })
+    .optional(),
+  question: z.string().min(3).max(255).optional(),
+  score: z.number().optional(),
+  type: z
+    .enum(["mcq", "boolean", "short-answer", "long-answer", "obj"])
+    .optional(),
+});
+
+const updateOptionSchema = z.object({
+  isCorrect: z.boolean().optional(),
+  media: z
+    .object({
+      type: z.enum(["image"]),
+      url: z.string(),
+    })
+    .optional(),
+  option: z.string().min(1).optional(),
+});
+
+export {
+  questionCreationSchema,
+  optionCreationSchema,
+  updateQuestionSchema,
+  updateOptionSchema,
+};
