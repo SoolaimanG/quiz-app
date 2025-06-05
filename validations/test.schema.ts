@@ -82,25 +82,26 @@ const updateTestSchema = z.object({
   settings: z
     .object({
       endNote: z.string().optional(),
-      lockDownBrowser: z.boolean().default(true),
-      preventCopyPaste: z.boolean().default(true),
-      preventPrint: z.boolean().default(true),
-      preventScreenCapture: z.boolean().default(true),
-      screenRecordSession: z.boolean().default(true),
-      showCorrectAnswers: z.boolean().default(false),
-      showNavigation: z.boolean().default(true),
-      showProgress: z.boolean().default(true),
-      showRemainingTime: z.boolean().default(true),
-      showResultAtEnd: z.boolean().default(false),
-      showSubmitButton: z.boolean().default(true),
-      shuffleOptions: z.boolean().default(true),
-      shuffleQuestions: z.boolean().default(true),
-      submitOnPageLeave: z.boolean().default(true),
+      lockDownBrowser: z.boolean().optional(),
+      preventCopyPaste: z.boolean().optional(),
+      preventPrint: z.boolean().optional(),
+      preventScreenCapture: z.boolean().optional(),
+      screenRecordSession: z.boolean().optional(),
+      showCorrectAnswers: z.boolean().optional(),
+      showNavigation: z.boolean().optional(),
+      showProgress: z.boolean().optional(),
+      showRemainingTime: z.boolean().optional(),
+      showResultAtEnd: z.boolean().optional(),
+      showSubmitButton: z.boolean().optional(),
+      shuffleOptions: z.boolean().optional(),
+      shuffleQuestions: z.boolean().optional(),
+      submitOnPageLeave: z.boolean().optional(),
       timeLimit: z
         .number({
           message: "Time is required, please provide a time in minute",
         })
         .optional(),
+      allowInternalSystemToGradeTest: z.boolean().optional(),
     })
     .optional(),
   subject: z
@@ -143,6 +144,14 @@ const testAttemptUpdateSchema = z.object({
   testAttemptId: z.string().refine((value) => isValidObjectId(value)),
 });
 
+const questionAnswerSchema = z.object({
+  answerId: z
+    .string()
+    .refine((value) => isValidObjectId(value))
+    .optional(),
+  answer: z.string().optional(),
+});
+
 export {
   createTestSchema,
   updateTestSchema,
@@ -152,4 +161,5 @@ export {
   markQuestionAsCorrectSchema,
   markTestAsResultsAreReadySchema,
   testAttemptUpdateSchema,
+  questionAnswerSchema,
 };

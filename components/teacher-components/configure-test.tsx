@@ -23,9 +23,11 @@ import { ITestConfigureList } from "@/types/client.types";
 import { cn } from "@/lib/client-utils";
 import { Button } from "../ui/button";
 import { ConfigureAccessCode } from "../configure-access-code";
+import { useState } from "react";
 
 export const ConfigureTest = () => {
   const { data: test, setData } = useEditTest();
+  const [isOpen, setIsOpen] = useState(false);
 
   const configureTestSettingQuestions: ITestConfigureList[] = [
     {
@@ -143,7 +145,10 @@ export const ConfigureTest = () => {
                   <Text className="flex items-center gap-1">
                     Check this to configure your test with access code.{" "}
                   </Text>
-                  <ConfigureAccessCode>
+                  <ConfigureAccessCode
+                    onSuccess={() => setIsOpen(false)}
+                    onError={() => setIsOpen(false)}
+                  >
                     <Button variant="link" className="px-0">
                       Configure access code
                     </Button>
@@ -151,10 +156,12 @@ export const ConfigureTest = () => {
                 </div>
               </div>
             </div>
+            {/*<ConfigureAccessCode>*/}
             <Switch
+              onClick={() => setIsOpen(!isOpen)}
               checked={!!Object.keys(test?.accessCode || {})?.length}
-              onCheckedChange={(e) => console.log(e)}
             />
+            {/*</ConfigureAccessCode>*/}
           </div>
         </div>
       </div>
@@ -228,6 +235,7 @@ export const ConfigureTest = () => {
           ))}
         </div>
       </div>
+      <ConfigureAccessCode key={isOpen + ""} isOpen={isOpen} />
     </div>
   );
 };

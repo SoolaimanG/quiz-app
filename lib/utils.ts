@@ -5,6 +5,7 @@
 import axios, { AxiosInstance, AxiosProgressEvent } from "axios";
 import accountCreationSchema from "@/validations/account-creation-schema";
 import {
+  IAnswer,
   IApiResponse,
   IOngoingTest,
   IOption,
@@ -335,6 +336,26 @@ export class Utils {
       `/api/teacher/test/${testId}/question/${questionId}/options/${optionId}`
     );
 
+    return res.data;
+  }
+
+  async createOrUpdateQuestionAnswer(
+    testId: string,
+    questionId: string,
+    answer: string
+  ) {
+    const res = await this.api.post<IApiResponse<IAnswer>>(
+      `/api/teacher/test/${testId}/question/${questionId}/answer`,
+      { answer }
+    );
+
+    return res.data;
+  }
+
+  async getQuestionAnswer(testId: string, questionId: string) {
+    const res = await this.api.get<IApiResponse<IAnswer>>(
+      `/api/teacher/test/${testId}/question/${questionId}/answer`
+    );
     return res.data;
   }
 

@@ -23,6 +23,20 @@ const useEditTest = create<editTestStore>((set) => ({
       isLoading,
     }));
   },
+  saving: false,
+  setSaving(saving) {
+    set((state) => ({
+      ...state,
+      saving,
+    }));
+  },
+  lastUpdated: undefined,
+  setLastUpdated(lastUpdated) {
+    set((state) => ({
+      ...state,
+      lastUpdated: lastUpdated || new Date(),
+    }));
+  },
 }));
 
 export { useEditTest };

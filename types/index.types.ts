@@ -3,8 +3,8 @@ import { Schema } from "mongoose";
 import { ZodIssue } from "zod";
 
 export interface ITimeStamp {
-  createdAt?: string;
-  updatedAt?: string;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
 export type IRole = "TEACHER" | "STUDENT" | "ADMIN";

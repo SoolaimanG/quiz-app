@@ -58,39 +58,42 @@ const QuestionSchema = new Schema<IQuestion>({
   },
 });
 
-const QuestionOptionSchema = new Schema<IOption>({
-  isCorrect: {
-    type: Boolean,
-    default: false,
-    validate: {
-      validator: async function (isCorrect: boolean) {
-        const question = await Question.findById(this?.question, {
-          type: 1,
-          _id: 1,
-        });
-
-        if (question?.type === "obj" && isCorrect) {
-          const options = await QuestionOption.countDocuments({
-            question: question._id,
-            isCorrect: true,
+const QuestionOptionSchema = new Schema<IOption>(
+  {
+    isCorrect: {
+      type: Boolean,
+      default: false,
+      validate: {
+        validator: async function (isCorrect: boolean) {
+          const question = await Question.findById(this?.question, {
+            type: 1,
+            _id: 1,
           });
 
-          return !Boolean(options >= 1);
-        }
+          if (question?.type === "obj" && isCorrect) {
+            const options = await QuestionOption.countDocuments({
+              question: question._id,
+              isCorrect: true,
+            });
 
-        return true;
+            return !Boolean(options >= 1);
+          }
+
+          return true;
+        },
+        message: "Only one option can be correct for an objective question",
       },
-      message: "Only one option can be correct for an objective question",
     },
+    media: { type: QuestionMedia },
+    option: {
+      type: String,
+      required: true,
+      min: 5,
+    },
+    question: { type: Schema.Types.ObjectId, required: true },
   },
-  media: { type: QuestionMedia },
-  option: {
-    type: String,
-    required: true,
-    min: 5,
-  },
-  question: { type: Schema.Types.ObjectId, required: true },
-});
+  { timestamps: true }
+);
 
 const QuestionAnswerSchema = new Schema<IAnswer>({
   answer: { type: String, required: true },

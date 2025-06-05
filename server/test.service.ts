@@ -507,6 +507,7 @@ export class Test extends UserService {
       question.explanation = updates.explanation || question.explanation;
       question.hint = updates.hint || question.hint;
       question.score = updates.score || question.score;
+      question.type = updates.type || question.type;
 
       const updatedQuestion = await question.save({
         session: this.session?.session,
@@ -2174,6 +2175,114 @@ export class Test extends UserService {
         .limit(8);
 
       return testAttempts;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  public async addAnswerForQuestion(questionId: string, answer: string) {
+    try {
+      this.session.session?.startTransaction();
+
+      const teacher = await this.teacher?.getTeacherProfile({
+        throwOn404: true,
+      });
+
+      const test = await this.getTest({
+        throwOn404: true,
+        query: { _id: this.id, teacher: teacher?._id },
+      });
+
+      const question = await Question.findById(questionId);
+
+      if (!question) {
+        throw new Error("Question not found");
+      }
+
+      const allowedTypes = ["short-answer", "long-answer"] as IQuestionType[];
+
+      if (!allowedTypes.includes(question.type)) {
+        throw new Error("Cannot set answer for this question type");
+      }
+
+      const answerExists = await QuestionAnswer.findOne({
+        question: questionId,
+      });
+
+      if (answerExists) {
+        answerExists.answer = answer ?? answerExists.answer;
+
+        await answerExists.save({
+          session: this.session.session,
+          validateModifiedOnly: true,
+        });
+
+        await this.log.info(
+          `Successfully updated answer for question with Id ${questionId}`
+        );
+
+        await this.session.session?.commitTransaction();
+
+        return answerExists?.toJSON();
+      }
+
+      const _answer = new QuestionAnswer({
+        question: questionId,
+        answer,
+      });
+
+      const newAnswer = await _answer.save({
+        session: this.session.session,
+        validateModifiedOnly: true,
+      });
+
+      await this.log.info(
+        `Successfully added answer for question with Id ${questionId}`
+      );
+
+      await this.session.session?.commitTransaction();
+
+      return newAnswer?.toJSON();
+    } catch (error) {
+      if (this.session.session) {
+        await this.session?.session?.abortTransaction();
+      }
+
+      this.log.error(
+        `Tries to add answer for question with Id ${questionId} but fails, Reason ${
+          (error as Error).message
+        }`
+      );
+
+      throw error;
+    }
+  }
+
+  public async getQuestionAnswer(questionId: string) {
+    try {
+      const teacher = await this.teacher?.getTeacherProfile({
+        throwOn404: true,
+      });
+
+      const test = await this.getTest({
+        throwOn404: true,
+        query: { _id: this.id, teacher: teacher?._id },
+      });
+
+      const question = await Question.findOne({
+        _id: questionId,
+        test: test?._id,
+      });
+
+      if (!question) {
+        throw new Error("Question not found");
+      }
+
+      const answer = await QuestionAnswer.findOne({
+        question: questionId,
+      });
+
+      return answer?.toJSON();
     } catch (error) {
       throw error;
     }

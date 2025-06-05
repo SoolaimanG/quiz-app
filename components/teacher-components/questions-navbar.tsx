@@ -5,8 +5,8 @@ import { Button } from "../ui/button";
 import {
   ChevronLeft,
   Ellipsis,
-  EyeIcon,
   Rocket,
+  RefreshCw,
   SaveIcon,
   ScrollIcon,
   Settings,
@@ -21,7 +21,7 @@ import {
 } from "../ui/select";
 import { cn } from "@/lib/client-utils";
 import { useSession } from "@/store/session.store";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Utils } from "@/lib/utils";
 import { Skeleton } from "../ui/skeleton";
 import { useQuestion } from "@/store/question.store";
@@ -48,8 +48,7 @@ import { toast } from "sonner";
 export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
   const { sessionToken } = useSession();
   const { setIsLoading } = useQuestion();
-  const { setData, data: _test } = useEditTest();
-  const queryClient = useQueryClient();
+  const { setData, data: _test, saving, setSaving, ...store } = useEditTest();
   const r = useRouter();
 
   const utils = new Utils(sessionToken);
@@ -80,7 +79,9 @@ export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
 
   const updateTest = async () => {
     try {
+      setSaving(true);
       await utils.updateTest(testId!, _test!);
+      store.setLastUpdated();
     } catch (error) {
       const { errors, message: errMsg } = utils.structureError(error);
 
@@ -95,6 +96,8 @@ export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
       toast.error("ERROR", {
         description: "",
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -105,9 +108,9 @@ export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
           <Button size="icon" variant="secondary">
             <ChevronLeft size={19} />
           </Button>
-          {_test?.updatedAt && (
+          {store?.lastUpdated && (
             <Text className="hidden md:flex">
-              {formatDistanceToNow(_test?.updatedAt!, { addSuffix: true })}
+              {formatDistanceToNow(store.lastUpdated!, { addSuffix: true })}
             </Text>
           )}
         </div>
@@ -132,7 +135,7 @@ export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
               >
                 <SelectValue
                   defaultValue={utils?.truncateString(_currentTest()?.title, 8)}
-                  placeholder="Theme"
+                  placeholder="Tests"
                 />
               </SelectTrigger>
               <SelectContent>
@@ -156,19 +159,47 @@ export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
               side="bottom"
               className="p-2 rounded-xl flex flex-col"
             >
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button
+                    className="flex items-start justify-start"
+                    variant="ghost"
+                    disabled={saving}
+                  >
+                    <Settings />
+                    Settings
+                  </Button>
+                </SheetTrigger>
+                <SheetContent className="md:max-w-md w-full">
+                  <SheetHeader>
+                    <SheetTitle className="text-xl">Configure Test</SheetTitle>
+                    <SheetDescription>
+                      Here you can configure your test settings and define the
+                      security features
+                    </SheetDescription>
+                  </SheetHeader>
+                  <ScrollArea className="p-4 h-[calc(100vh-13rem)] w-full">
+                    <ConfigureTest />
+                  </ScrollArea>
+                  <SheetFooter>
+                    <SheetClose asChild>
+                      <Button
+                        onClick={updateTest}
+                        disabled={isLoading}
+                        className="mb-3"
+                      >
+                        Continue
+                      </Button>
+                    </SheetClose>
+                  </SheetFooter>
+                </SheetContent>
+              </Sheet>
               <Button
                 className="flex items-start justify-start"
                 variant="ghost"
               >
-                <Settings />
-                Settings
-              </Button>
-              <Button
-                className="flex items-start justify-start"
-                variant="ghost"
-              >
-                <EyeIcon />
-                Preview
+                {!saving ? <SaveIcon /> : <RefreshCw className="anmate-spin" />}
+                {saving ? "Saving..." : "Save"}
               </Button>
             </PopoverContent>
           </Popover>
@@ -203,9 +234,13 @@ export const QuestionNavbar: FC<{ testId: string }> = ({ testId }) => {
             </SheetContent>
           </Sheet>
 
-          <Button className="hidden md:flex" variant="secondary">
-            <SaveIcon />
-            Save
+          <Button
+            className="hidden md:flex"
+            variant="secondary"
+            disabled={saving}
+          >
+            {!saving ? <SaveIcon /> : <RefreshCw className="animate-spin" />}
+            {saving ? "Saving..." : "Save"}
           </Button>
           <Button>
             <Rocket />

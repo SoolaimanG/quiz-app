@@ -100,6 +100,10 @@ export interface editTestStore {
 
   isLoading: boolean;
   setIsLoading: (isLoading: boolean) => void;
+  saving: boolean;
+  setSaving: (saving: boolean) => void;
+  lastUpdated?: Date;
+  setLastUpdated: (lastUpdated?: Date) => void;
 }
 
 export interface IQuestionStore {

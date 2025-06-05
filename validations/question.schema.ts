@@ -44,7 +44,10 @@ const updateQuestionSchema = z.object({
   question: z.string().min(3).max(255).optional(),
   score: z.number().optional(),
   type: z
-    .enum(["mcq", "boolean", "short-answer", "long-answer", "obj"])
+    .enum(["mcq", "boolean", "short-answer", "long-answer", "obj"], {
+      message: "Please select a valid question type",
+      invalid_type_error: "Please select a valid question type",
+    })
     .optional(),
 });
 

@@ -151,8 +151,11 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
     removeOption,
     options: _options,
   } = useQuestion();
-  const { data: test } = useEditTest();
+  const { data: test, setSaving, setLastUpdated } = useEditTest();
   const queryClient = useQueryClient();
+  const [chnagingValue, setChangingValue] = useState<string>();
+  const debouncedValue = useDebounce(chnagingValue, 2000);
+
   const questionTypes: { type: IQuestionType; label: string }[] = [
     { type: "boolean", label: "Boolean" },
     { type: "mcq", label: "Multiple Choice" },
@@ -160,6 +163,8 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
     { type: "short-answer", label: "Short Answer" },
     { type: "long-answer", label: "Long Answer" },
   ];
+  const [answer, setAnswer] = useState<string>();
+  const debouncedAnswer = useDebounce(answer, 2000);
 
   const question = questions?.get(props?._id!);
 
@@ -168,17 +173,6 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
     test?.settings?.allowInternalSystemToGradeTest;
 
   const showOptions = question?.type === "obj" || question?.type === "mcq";
-
-  const {
-    isLoading,
-    data: options,
-    error,
-  } = useQuery({
-    queryKey: ["options", props?._id],
-    queryFn: () => utils.getQuestionOptions(test?._id!, props?._id!),
-    enabled:
-      Boolean(question?._id) && (props.type === "obj" || props.type === "mcq"), //Only fetch options if question id is present
-  });
 
   const addNewOption = async () => {
     let _id = new mongoose.Types.ObjectId().toString(); //Generating a new id for the new option to b
@@ -195,10 +189,12 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
         _id,
       });
 
+      setSaving(true);
       const res = await utils.createOption(test?._id!, props?._id!, [
         optionPayload,
       ]);
 
+      setLastUpdated();
       queryClient.invalidateQueries({ queryKey: ["options", props?._id] });
 
       toast.success("SUCCESS", { description: res.message });
@@ -214,14 +210,95 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
       toast.error("Error", {
         description: !!errors?.length ? message : errMsg,
       });
+    } finally {
+      setSaving(false);
     }
   };
 
-  useEffect(() => {
-    if (!options?.data?.length) return;
+  const modifyOption = async (
+    _id: string,
+    question?: string,
+    score?: number,
+    type?: IQuestionType
+  ) => {
+    try {
+      setSaving(true);
+      await utils.updateQuestion(test?._id!, _id, {
+        question,
+        score,
+        type,
+      });
+      setLastUpdated();
+    } catch (error) {
+      editQuestion(_id, {
+        question: "Something went wrong",
+        score: 0,
+      });
 
-    addOptions(options?.data);
-  }, [options?.data]);
+      const { errors, message: errMsg } = utils.structureError(error);
+
+      const message = errors
+        ?.map((error) => `${error.path[0]}: ${error.message}`)
+        .join(", ");
+
+      toast.error("Error", {
+        description: !!errors?.length ? message : errMsg,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const modifyAnswer = async (answer = "") => {
+    try {
+      setSaving(true);
+      await utils.createOrUpdateQuestionAnswer(test?._id!, props?._id!, answer);
+      setLastUpdated();
+    } catch (error) {
+      setAnswer(data?.data?.answer || "");
+
+      const { errors, message: errMsg } = utils.structureError(error);
+
+      const message = errors
+        ?.map((error) => `${error.path[0]}: ${error.message}`)
+        .join(", ");
+
+      toast.error("Error", {
+        description: !!errors?.length ? message : errMsg,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const { isLoading, data } = useQuery({
+    queryKey: ["answer", props?._id],
+    queryFn: () => utils.getQuestionAnswer(test?._id!, props?._id!),
+    enabled: canShowSetAnswer && !!test?._id,
+  });
+
+  useEffect(() => {
+    if (data?.data?.answer) {
+      setAnswer(data?.data?.answer);
+    }
+  }, [data?.data?.answer]);
+
+  useEffect(() => {
+    if (!debouncedAnswer) return;
+
+    if (debouncedAnswer === data?.data?.answer) return;
+
+    modifyAnswer(debouncedAnswer);
+  }, [debouncedAnswer]);
+
+  //Calling the update api after 2 seconds of no change in the input
+  useEffect(() => {
+    if (!debouncedValue) return;
+
+    const [_id, question, score] = debouncedValue?.split("-");
+
+    modifyOption(_id, question, Number(score));
+  }, [debouncedValue]);
 
   return (
     <Card id={`#${question?._id}`} className="p-3 md:p-6">
@@ -229,11 +306,19 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
         <div className="flex items-center justify-between w-full">
           <Select
             value={question?.type}
-            onValueChange={(e) => {
+            onValueChange={async (e) => {
               editQuestion(question?._id!, {
                 ...question,
                 type: e as IQuestionType,
               });
+              setSaving(true);
+              await modifyOption(
+                question?._id!,
+                question?.question,
+                question?.score,
+                e as IQuestionType
+              );
+              setSaving(false);
             }}
           >
             <SelectTrigger>
@@ -278,6 +363,9 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
           <Textarea
             value={question?.question || ""}
             onChange={(e) => {
+              setChangingValue(
+                `${question?._id}-${e.target.value}-${question?.score}`
+              );
               editQuestion(question?._id!, {
                 ...question,
                 question: e.target.value,
@@ -295,17 +383,7 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
           </Fragment>
         )}
 
-        {showOptions && isLoading && (
-          <div className="space-y-3">
-            {Array.from({ length: 3 })?.map((_, idx) => (
-              <Skeleton key={idx} className="w-full h-9" />
-            ))}
-          </div>
-        )}
-
-        {!!_options.size && showOptions && !isLoading && (
-          <OptionsInput questionId={props?._id!} />
-        )}
+        {showOptions && <OptionsInput questionId={props?._id!} />}
 
         {showOptions && <Button onClick={addNewOption}>Add Options</Button>}
       </CardContent>
@@ -314,7 +392,14 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
         {canShowSetAnswer && (
           <div className="flex flex-col gap-2">
             <label>Answer</label>
-            <Textarea />
+            {isLoading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : (
+              <Textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+              />
+            )}
           </div>
         )}
       </CardContent>
@@ -330,6 +415,11 @@ const QuestionCreationCard: FC<IQuestion & { idx?: number }> = ({
             type="number"
             value={question?.score || 0}
             onChange={(e) => {
+              if (isNaN(Number(e.target.valueAsNumber))) return;
+
+              setChangingValue(
+                `${question?._id}-${question?.question}-${e.target.valueAsNumber}`
+              );
               editQuestion(question?._id!, {
                 ...question,
                 score: e.target.valueAsNumber || 0,
@@ -354,10 +444,16 @@ const OptionsInput: FC<{ questionId: string }> = ({ ...props }) => {
     options,
     removeOption: _removeOption,
     addOption,
+    addOptions,
   } = useQuestion();
-  const { data: test } = useEditTest();
+  const { data: test, setSaving, setLastUpdated } = useEditTest();
   const [changingOption, setChangingOption] = useState<string>();
   const debouncedOptions = useDebounce(changingOption, 2000);
+
+  const { isLoading, data: _options } = useQuery({
+    queryKey: ["options", props.questionId],
+    queryFn: () => utils.getQuestionOptions(test?._id!, props.questionId),
+  });
 
   const questionOptions = useCallback(() => {
     let questionOptions: IOption[] = [];
@@ -375,7 +471,9 @@ const OptionsInput: FC<{ questionId: string }> = ({ ...props }) => {
     try {
       _removeOption(option._id!);
 
+      setSaving(true);
       await utils.deleteOption(test?._id!, props.questionId, option._id!);
+      setLastUpdated();
     } catch (error) {
       addOption(option);
 
@@ -388,11 +486,14 @@ const OptionsInput: FC<{ questionId: string }> = ({ ...props }) => {
       toast.error("Error", {
         description: !!errors?.length ? message : errMsg,
       });
+    } finally {
+      setSaving(false);
     }
   };
 
   const modifyOption = async (option: IOption) => {
     try {
+      setSaving(true);
       const { message: description } = await utils.updateOption(
         test?._id!,
         props.questionId,
@@ -403,6 +504,7 @@ const OptionsInput: FC<{ questionId: string }> = ({ ...props }) => {
         }
       );
 
+      setLastUpdated();
       toast.success("SUCCESS", { description });
     } catch (error) {
       const { errors, message: errMsg } = utils.structureError(error);
@@ -414,8 +516,33 @@ const OptionsInput: FC<{ questionId: string }> = ({ ...props }) => {
       toast.error("Error", {
         description: !!errors?.length ? message : errMsg,
       });
+    } finally {
+      setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!_options?.data?.length) return;
+
+    addOptions(_options?.data);
+
+    //Set the last updated time
+    const sortedOptions = _options?.data?.sort(
+      (a, b) =>
+        new Date(b?.updatedAt!).getTime() - new Date(a?.updatedAt!).getTime()
+    );
+
+    if (
+      test?.updatedAt &&
+      new Date(test?.updatedAt).getTime() >
+        new Date(sortedOptions[0]?.updatedAt!).getTime()
+    ) {
+      setLastUpdated(test?.updatedAt as Date);
+      return;
+    }
+
+    setLastUpdated(sortedOptions[0]?.updatedAt as Date);
+  }, [_options?.data]);
 
   useEffect(() => {
     if (!changingOption) return;
@@ -428,6 +555,16 @@ const OptionsInput: FC<{ questionId: string }> = ({ ...props }) => {
 
     modifyOption(option);
   }, [debouncedOptions]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 })?.map((_, idx) => (
+          <Skeleton key={idx} className="w-full h-9" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
